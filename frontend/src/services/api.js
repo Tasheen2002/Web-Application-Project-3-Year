@@ -113,6 +113,7 @@ export const adminAPI = {
   toggleProductStatus: (id) => api.put(`/admin/products/${id}/toggle-status`),
 
   // Category Management
+  getAllCategories: () => api.get("/categories"),
   createCategory: (categoryData) => api.post("/admin/categories", categoryData),
   updateCategory: (id, categoryData) =>
     api.put(`/admin/categories/${id}`, categoryData),
@@ -121,6 +122,8 @@ export const adminAPI = {
   // User Management
   getUsers: (params) => api.get("/admin/users", { params }),
   getUser: (id) => api.get(`/admin/users/${id}`),
+  createUser: (userData) => api.post("/admin/users", userData),
+  updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
   updateUserStatus: (id, status) =>
     api.put(`/admin/users/${id}/status`, { status }),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
