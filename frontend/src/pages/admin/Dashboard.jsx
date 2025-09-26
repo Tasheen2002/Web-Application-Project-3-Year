@@ -6,6 +6,7 @@ import StatsCard from "../../components/admin/StatsCard";
 import RecentOrders from "../../components/admin/RecentOrders";
 import SalesChart from "../../components/admin/SalesChart";
 import ProductsManagement from "./ProductsManagement";
+import CategoriesManagement from "./CategoriesManagement";
 import OrdersManagement from "./OrdersManagement";
 import UsersManagement from "./UsersManagement";
 import AnalyticsPage from "./AnalyticsPage";
@@ -124,6 +125,12 @@ const Dashboard = () => {
 
   const navigation = [
     {
+      name: "Categories",
+      href: "/admin/categories",
+      icon: List,
+      current: location.pathname.startsWith("/admin/categories"),
+    },
+    {
       name: "Overview",
       href: "/admin",
       icon: Grid,
@@ -227,6 +234,10 @@ const Dashboard = () => {
                 <Routes>
                   <Route path="/" element={<DashboardOverview />} />
                   <Route path="/products" element={<ProductsManagement />} />
+                  <Route
+                    path="/categories"
+                    element={<CategoriesManagement />}
+                  />
                   <Route path="/orders" element={<OrdersManagement />} />
                   <Route path="/users" element={<UsersManagement />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />

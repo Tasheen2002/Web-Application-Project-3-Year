@@ -1,4 +1,4 @@
-import express from 'express';
+import express from "express";
 import {
   getDashboardStats,
   getAllUsers,
@@ -13,32 +13,42 @@ import {
   deleteCategory,
   getAllOrders,
   updateOrderStatus as adminUpdateOrderStatus,
-  uploadProductImages
-} from '../controllers/adminController.js';
-import { protect, admin } from '../middleware/auth.js';
-import { upload } from '../middleware/upload.js';
+  uploadProductImages,
+  createUser,
+  updateUser,
+  updateUserStatus,
+} from "../controllers/adminController.js";
+import { protect, admin } from "../middleware/auth.js";
+import { upload } from "../middleware/upload.js";
 
 const router = express.Router();
 
 router.use(protect, admin);
 
-router.get('/dashboard', getDashboardStats);
+router.get("/dashboard", getDashboardStats);
 
-router.get('/users', getAllUsers);
-router.get('/users/:id', getUserById);
-router.put('/users/:id/role', updateUserRole);
-router.delete('/users/:id', deleteUser);
+router.get("/users", getAllUsers);
+router.post("/users", createUser);
+router.get("/users/:id", getUserById);
+router.put("/users/:id", updateUser); // update user details
+router.put("/users/:id/status", updateUserStatus); // update user status
+router.put("/users/:id/role", updateUserRole);
+router.delete("/users/:id", deleteUser);
 
-router.post('/products', createProduct);
-router.put('/products/:id', updateProduct);
-router.delete('/products/:id', deleteProduct);
-router.post('/products/:id/images', upload.array('images', 5), uploadProductImages);
+router.post("/products", createProduct);
+router.put("/products/:id", updateProduct);
+router.delete("/products/:id", deleteProduct);
+router.post(
+  "/products/:id/images",
+  upload.array("images", 5),
+  uploadProductImages
+);
 
-router.post('/categories', createCategory);
-router.put('/categories/:id', updateCategory);
-router.delete('/categories/:id', deleteCategory);
+router.post("/categories", createCategory);
+router.put("/categories/:id", updateCategory);
+router.delete("/categories/:id", deleteCategory);
 
-router.get('/orders', getAllOrders);
-router.put('/orders/:id/status', adminUpdateOrderStatus);
+router.get("/orders", getAllOrders);
+router.put("/orders/:id/status", adminUpdateOrderStatus);
 
 export default router;

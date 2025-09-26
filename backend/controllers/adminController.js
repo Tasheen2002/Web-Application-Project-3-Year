@@ -1,8 +1,131 @@
-import User from '../models/User.js';
-import Product from '../models/Product.js';
-import Category from '../models/Category.js';
-import Order from '../models/Order.js';
-import { uploadToCloudinary } from '../utils/cloudinary.js';
+// Admin: Update User Status
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status || !["active", "inactive", "banned"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value",
+      });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true, runValidators: true }
+    ).select("-password");
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: "User status updated successfully",
+      user,
+    });
+  } catch (error) {
+    console.error("Admin update user status error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during user status update",
+    });
+  }
+};
+// Admin: Update User
+export const updateUser = async (req, res) => {
+  try {
+    const { name, email, phone, status, role } = req.body;
+    const updateFields = {};
+    if (name) updateFields.name = name;
+    if (email) updateFields.email = email;
+    if (phone) updateFields.phone = phone;
+    if (status) updateFields.status = status;
+    if (role) updateFields.role = role;
+
+    // Prevent demoting last admin
+    if (role === "user") {
+      const user = await User.findById(req.params.id);
+      if (user && user.role === "admin") {
+        const adminCount = await User.countDocuments({ role: "admin" });
+        if (adminCount === 1) {
+          return res.status(400).json({
+            success: false,
+            message: "Cannot demote the last admin user",
+          });
+        }
+      }
+    }
+
+    const user = await User.findByIdAndUpdate(req.params.id, updateFields, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user,
+    });
+  } catch (error) {
+    console.error("Admin update user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during user update",
+    });
+  }
+};
+// Admin: Create User
+export const createUser = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, and password are required",
+      });
+    }
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this email already exists",
+      });
+    }
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: role || "user",
+    });
+    res.status(201).json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Admin create user error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during user creation" });
+  }
+};
+import User from "../models/User.js";
+import Product from "../models/Product.js";
+import Category from "../models/Category.js";
+import Order from "../models/Order.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 // Dashboard Statistics
 export const getDashboardStats = async (req, res) => {
@@ -12,7 +135,7 @@ export const getDashboardStats = async (req, res) => {
     const totalOrders = await Order.countDocuments();
     const totalRevenue = await Order.aggregate([
       { $match: { isPaid: true } },
-      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+      { $group: { _id: null, total: { $sum: "$totalPrice" } } },
     ]);
 
     const monthlyRevenue = await Order.aggregate([
@@ -20,47 +143,47 @@ export const getDashboardStats = async (req, res) => {
         $match: {
           isPaid: true,
           createdAt: {
-            $gte: new Date(new Date().setMonth(new Date().getMonth() - 12))
-          }
-        }
+            $gte: new Date(new Date().setMonth(new Date().getMonth() - 12)),
+          },
+        },
       },
       {
         $group: {
           _id: {
-            month: { $month: '$createdAt' },
-            year: { $year: '$createdAt' }
+            month: { $month: "$createdAt" },
+            year: { $year: "$createdAt" },
           },
-          revenue: { $sum: '$totalPrice' },
-          orders: { $sum: 1 }
-        }
+          revenue: { $sum: "$totalPrice" },
+          orders: { $sum: 1 },
+        },
       },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
 
     const recentOrders = await Order.find()
-      .populate('user', 'name email')
+      .populate("user", "name email")
       .sort({ createdAt: -1 })
       .limit(5);
 
-    const topProducts = await Product.find({ status: 'active' })
+    const topProducts = await Product.find({ status: "active" })
       .sort({ ratings: -1 })
       .limit(5)
-      .select('name price ratings numOfReviews images');
+      .select("name price ratings numOfReviews images");
 
     const orderStatusDistribution = await Order.aggregate([
       {
         $group: {
-          _id: '$orderStatus',
-          count: { $sum: 1 }
-        }
-      }
+          _id: "$orderStatus",
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     const lowStockProducts = await Product.find({
       stock: { $lt: 10 },
-      status: 'active'
+      status: "active",
     })
-      .select('name stock price')
+      .select("name stock price")
       .limit(10);
 
     res.status(200).json({
@@ -74,14 +197,14 @@ export const getDashboardStats = async (req, res) => {
         recentOrders,
         topProducts,
         orderStatusDistribution,
-        lowStockProducts
-      }
+        lowStockProducts,
+      },
     });
   } catch (error) {
-    console.error('Get dashboard stats error:', error);
+    console.error("Get dashboard stats error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -95,23 +218,27 @@ export const getAllUsers = async (req, res) => {
     const { role, search } = req.query;
 
     let query = {};
-    if (role && role !== 'all') {
+    if (role && role !== "all") {
       query.role = role;
     }
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
       ];
     }
 
     const users = await User.find(query)
-      .select('-password')
+      .select("-password")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
     const total = await User.countDocuments(query);
+    const activeUsers = await User.countDocuments({
+      ...query,
+      status: "active",
+    });
 
     res.status(200).json({
       success: true,
@@ -120,26 +247,27 @@ export const getAllUsers = async (req, res) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
+      activeUsers,
     });
   } catch (error) {
-    console.error('Get all users error:', error);
+    console.error("Get all users error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
 
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id).select("-password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -150,13 +278,13 @@ export const getUserById = async (req, res) => {
     res.status(200).json({
       success: true,
       user,
-      recentOrders: userOrders
+      recentOrders: userOrders,
     });
   } catch (error) {
-    console.error('Get user by ID error:', error);
+    console.error("Get user by ID error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -165,10 +293,10 @@ export const updateUserRole = async (req, res) => {
   try {
     const { role } = req.body;
 
-    if (!['user', 'admin'].includes(role)) {
+    if (!["user", "admin"].includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role'
+        message: "Invalid role",
       });
     }
 
@@ -176,25 +304,25 @@ export const updateUserRole = async (req, res) => {
       req.params.id,
       { role },
       { new: true }
-    ).select('-password');
+    ).select("-password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'User role updated successfully',
-      user
+      message: "User role updated successfully",
+      user,
     });
   } catch (error) {
-    console.error('Update user role error:', error);
+    console.error("Update user role error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -206,14 +334,14 @@ export const deleteUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
-    if (user.role === 'admin') {
+    if (user.role === "admin") {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete admin user'
+        message: "Cannot delete admin user",
       });
     }
 
@@ -221,13 +349,13 @@ export const deleteUser = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: "User deleted successfully",
     });
   } catch (error) {
-    console.error('Delete user error:', error);
+    console.error("Delete user error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -251,7 +379,7 @@ export const createProduct = async (req, res) => {
       featured,
       status,
       weight,
-      dimensions
+      dimensions,
     } = req.body;
 
     const product = new Product({
@@ -267,25 +395,25 @@ export const createProduct = async (req, res) => {
       sizes: sizes ? JSON.parse(sizes) : [],
       specifications: specifications ? JSON.parse(specifications) : [],
       tags: tags ? JSON.parse(tags) : [],
-      featured: featured === 'true',
+      featured: featured === "true",
       status,
       weight,
       dimensions: dimensions ? JSON.parse(dimensions) : {},
-      images: []
+      images: [],
     });
 
     await product.save();
 
     res.status(201).json({
       success: true,
-      message: 'Product created successfully',
-      product
+      message: "Product created successfully",
+      product,
     });
   } catch (error) {
-    console.error('Create product error:', error);
+    console.error("Create product error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -296,42 +424,43 @@ export const updateProduct = async (req, res) => {
     const updateData = { ...req.body };
 
     // Parse JSON strings
-    ['colors', 'sizes', 'specifications', 'tags', 'dimensions'].forEach(field => {
-      if (updateData[field] && typeof updateData[field] === 'string') {
-        try {
-          updateData[field] = JSON.parse(updateData[field]);
-        } catch (e) {
-          delete updateData[field];
+    ["colors", "sizes", "specifications", "tags", "dimensions"].forEach(
+      (field) => {
+        if (updateData[field] && typeof updateData[field] === "string") {
+          try {
+            updateData[field] = JSON.parse(updateData[field]);
+          } catch (e) {
+            delete updateData[field];
+          }
         }
       }
-    });
+    );
 
-    if (updateData.featured === 'true') updateData.featured = true;
-    if (updateData.featured === 'false') updateData.featured = false;
+    if (updateData.featured === "true") updateData.featured = true;
+    if (updateData.featured === "false") updateData.featured = false;
 
-    const product = await Product.findByIdAndUpdate(
-      productId,
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('category');
+    const product = await Product.findByIdAndUpdate(productId, updateData, {
+      new: true,
+      runValidators: true,
+    }).populate("category");
 
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Product updated successfully',
-      product
+      message: "Product updated successfully",
+      product,
     });
   } catch (error) {
-    console.error('Update product error:', error);
+    console.error("Update product error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -343,7 +472,7 @@ export const deleteProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
@@ -351,13 +480,13 @@ export const deleteProduct = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Product deleted successfully'
+      message: "Product deleted successfully",
     });
   } catch (error) {
-    console.error('Delete product error:', error);
+    console.error("Delete product error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -370,24 +499,24 @@ export const uploadProductImages = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No images uploaded'
+        message: "No images uploaded",
       });
     }
 
     const imageUrls = [];
 
     for (const file of req.files) {
-      const result = await uploadToCloudinary(file.buffer, 'products');
+      const result = await uploadToCloudinary(file.buffer, "products");
       imageUrls.push({
         public_id: result.public_id,
-        url: result.secure_url
+        url: result.secure_url,
       });
     }
 
@@ -396,14 +525,14 @@ export const uploadProductImages = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Images uploaded successfully',
-      images: imageUrls
+      message: "Images uploaded successfully",
+      images: imageUrls,
     });
   } catch (error) {
-    console.error('Upload product images error:', error);
+    console.error("Upload product images error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -417,7 +546,7 @@ export const createCategory = async (req, res) => {
     if (existingCategory) {
       return res.status(400).json({
         success: false,
-        message: 'Category with this name already exists'
+        message: "Category with this name already exists",
       });
     }
 
@@ -425,28 +554,27 @@ export const createCategory = async (req, res) => {
       name,
       description,
       parent: parent || null,
-      sortOrder: sortOrder || 0
+      sortOrder: sortOrder || 0,
     });
 
     await category.save();
 
     if (parent) {
-      await Category.findByIdAndUpdate(
-        parent,
-        { $push: { children: category._id } }
-      );
+      await Category.findByIdAndUpdate(parent, {
+        $push: { children: category._id },
+      });
     }
 
     res.status(201).json({
       success: true,
-      message: 'Category created successfully',
-      category
+      message: "Category created successfully",
+      category,
     });
   } catch (error) {
-    console.error('Create category error:', error);
+    console.error("Create category error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -465,20 +593,20 @@ export const updateCategory = async (req, res) => {
     if (!category) {
       return res.status(404).json({
         success: false,
-        message: 'Category not found'
+        message: "Category not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Category updated successfully',
-      category
+      message: "Category updated successfully",
+      category,
     });
   } catch (error) {
-    console.error('Update category error:', error);
+    console.error("Update category error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -487,11 +615,13 @@ export const deleteCategory = async (req, res) => {
   try {
     const categoryId = req.params.id;
 
-    const productsInCategory = await Product.countDocuments({ category: categoryId });
+    const productsInCategory = await Product.countDocuments({
+      category: categoryId,
+    });
     if (productsInCategory > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete category with existing products'
+        message: "Cannot delete category with existing products",
       });
     }
 
@@ -499,28 +629,27 @@ export const deleteCategory = async (req, res) => {
     if (!category) {
       return res.status(404).json({
         success: false,
-        message: 'Category not found'
+        message: "Category not found",
       });
     }
 
     if (category.parent) {
-      await Category.findByIdAndUpdate(
-        category.parent,
-        { $pull: { children: categoryId } }
-      );
+      await Category.findByIdAndUpdate(category.parent, {
+        $pull: { children: categoryId },
+      });
     }
 
     await Category.findByIdAndDelete(categoryId);
 
     res.status(200).json({
       success: true,
-      message: 'Category deleted successfully'
+      message: "Category deleted successfully",
     });
   } catch (error) {
-    console.error('Delete category error:', error);
+    console.error("Delete category error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -535,20 +664,20 @@ export const getAllOrders = async (req, res) => {
 
     let query = {};
 
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       query.orderStatus = status;
     }
 
     if (startDate && endDate) {
       query.createdAt = {
         $gte: new Date(startDate),
-        $lte: new Date(endDate)
+        $lte: new Date(endDate),
       };
     }
 
     const orders = await Order.find(query)
-      .populate('user', 'name email')
-      .populate('orderItems.product', 'name images')
+      .populate("user", "name email")
+      .populate("orderItems.product", "name images")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -562,14 +691,14 @@ export const getAllOrders = async (req, res) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Get all orders error:', error);
+    console.error("Get all orders error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
@@ -584,16 +713,24 @@ export const updateOrderStatus = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: 'Order not found'
+        message: "Order not found",
       });
     }
 
-    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+    const validStatuses = [
+      "pending",
+      "confirmed",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "refunded",
+    ];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid order status'
+        message: "Invalid order status",
       });
     }
 
@@ -601,19 +738,19 @@ export const updateOrderStatus = async (req, res) => {
     order.statusHistory.push({
       status,
       date: new Date(),
-      note
+      note,
     });
 
     if (trackingNumber) {
       order.trackingNumber = trackingNumber;
     }
 
-    if (status === 'delivered') {
+    if (status === "delivered") {
       order.isDelivered = true;
       order.deliveredAt = new Date();
     }
 
-    if (status === 'shipped') {
+    if (status === "shipped") {
       order.shippingDate = new Date();
     }
 
@@ -621,14 +758,14 @@ export const updateOrderStatus = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Order status updated successfully',
-      order
+      message: "Order status updated successfully",
+      order,
     });
   } catch (error) {
-    console.error('Admin update order status error:', error);
+    console.error("Admin update order status error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: "Server error",
     });
   }
 };
