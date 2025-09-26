@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from 'react-query';
-import { Link } from 'react-router-dom';
-import { orderAPI } from '../../services/api';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "react-query";
+import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
+import { orderAPI } from "../../services/api";
 import {
   Package,
   Truck,
@@ -10,31 +11,74 @@ import {
   Clock,
   Eye,
   Download,
-  RefreshCw
-} from 'lucide-react';
+  RefreshCw,
+} from "lucide-react";
 
 const Orders = () => {
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState("all");
+  const queryClient = useQueryClient();
 
-  const { data: orders, isLoading, error, refetch } = useQuery(
-    ['userOrders', statusFilter],
-    () => orderAPI.getOrders({ status: statusFilter === 'all' ? undefined : statusFilter }),
+  const {
+    data: orders,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery(
+    ["userOrders", statusFilter],
+    () =>
+      orderAPI.getOrders({
+        status: statusFilter === "all" ? undefined : statusFilter,
+      }),
     {
-      select: (response) => response.data.orders,
+      select: (response) => {
+        // Transform the backend response to match frontend expectations
+        return (response.data.orders || []).map((order) => ({
+          ...order,
+          status: order.orderStatus || order.status,
+          totalAmount: order.totalPrice || order.totalAmount,
+          items: order.orderItems || order.items || [],
+        }));
+      },
     }
   );
 
+  // Cancel order mutation
+  const cancelOrderMutation = useMutation(
+    (orderId) => orderAPI.cancelOrder(orderId),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["userOrders"]);
+        toast.success("Order cancelled successfully");
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || "Failed to cancel order");
+      },
+    }
+  );
+
+  const handleCancelOrder = (orderId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (
+      window.confirm(
+        "Are you sure you want to cancel this order? This action cannot be undone."
+      )
+    ) {
+      cancelOrderMutation.mutate(orderId);
+    }
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'pending':
+      case "pending":
         return <Clock className="h-5 w-5 text-yellow-500" />;
-      case 'processing':
+      case "processing":
         return <Package className="h-5 w-5 text-blue-500" />;
-      case 'shipped':
+      case "shipped":
         return <Truck className="h-5 w-5 text-purple-500" />;
-      case 'delivered':
+      case "delivered":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'cancelled':
+      case "cancelled":
         return <XCircle className="h-5 w-5 text-red-500" />;
       default:
         return <Clock className="h-5 w-5 text-gray-500" />;
@@ -43,28 +87,28 @@ const Orders = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'shipped':
-        return 'bg-purple-100 text-purple-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "processing":
+        return "bg-blue-100 text-blue-800";
+      case "shipped":
+        return "bg-purple-100 text-purple-800";
+      case "delivered":
+        return "bg-green-100 text-green-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const statusOptions = [
-    { value: 'all', label: 'All Orders' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'processing', label: 'Processing' },
-    { value: 'shipped', label: 'Shipped' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'cancelled', label: 'Cancelled' }
+    { value: "all", label: "All Orders" },
+    { value: "pending", label: "Pending" },
+    { value: "processing", label: "Processing" },
+    { value: "shipped", label: "Shipped" },
+    { value: "delivered", label: "Delivered" },
+    { value: "cancelled", label: "Cancelled" },
   ];
 
   if (isLoading) {
@@ -98,7 +142,9 @@ const Orders = () => {
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">My Orders</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">
+              My Orders
+            </h1>
             <div className="flex items-center space-x-4">
               <select
                 value={statusFilter}
@@ -142,13 +188,25 @@ const Orders = () => {
                         <h3 className="text-lg font-semibold text-gray-900">
                           Order #{order._id.slice(-8)}
                         </h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(order.status)}`}>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(
+                            order.status
+                          )}`}
+                        >
                           {order.status}
                         </span>
                       </div>
                       <div className="text-sm text-gray-600 space-y-1">
-                        <p>Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
-                        <p>Total: <span className="font-semibold">${order.totalAmount.toFixed(2)}</span></p>
+                        <p>
+                          Placed on{" "}
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </p>
+                        <p>
+                          Total:{" "}
+                          <span className="font-semibold">
+                            ${order.totalAmount.toFixed(2)}
+                          </span>
+                        </p>
                       </div>
                     </div>
 
@@ -162,7 +220,8 @@ const Orders = () => {
                           <Eye className="h-4 w-4 mr-1" />
                           View Details
                         </Link>
-                        {(order.status === 'delivered' || order.status === 'shipped') && (
+                        {(order.status === "delivered" ||
+                          order.status === "shipped") && (
                           <button className="inline-flex items-center px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
                             <Download className="h-4 w-4 mr-1" />
                             Invoice
@@ -175,9 +234,15 @@ const Orders = () => {
                   {/* Order Items */}
                   <div className="space-y-3">
                     {order.items.slice(0, 3).map((item) => (
-                      <div key={item._id} className="flex items-center space-x-4">
+                      <div
+                        key={item._id}
+                        className="flex items-center space-x-4"
+                      >
                         <img
-                          src={item.product.images?.[0]?.url || '/placeholder-product.jpg'}
+                          src={
+                            item.product.images?.[0]?.url ||
+                            "/placeholder-product.jpg"
+                          }
                           alt={item.product.name}
                           className="w-16 h-16 object-cover rounded-lg"
                         />
@@ -213,34 +278,54 @@ const Orders = () => {
                   </div>
 
                   {/* Order Progress */}
-                  {order.status !== 'cancelled' && (
+                  {order.status !== "cancelled" && (
                     <div className="mt-6 pt-4 border-t">
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            ['pending', 'processing', 'shipped', 'delivered'].includes(order.status)
-                              ? 'bg-blue-600' : 'bg-gray-300'
-                          }`}></div>
+                          <div
+                            className={`w-3 h-3 rounded-full ${
+                              [
+                                "pending",
+                                "processing",
+                                "shipped",
+                                "delivered",
+                              ].includes(order.status)
+                                ? "bg-blue-600"
+                                : "bg-gray-300"
+                            }`}
+                          ></div>
                           <span className="text-gray-600">Order Placed</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            ['processing', 'shipped', 'delivered'].includes(order.status)
-                              ? 'bg-blue-600' : 'bg-gray-300'
-                          }`}></div>
+                          <div
+                            className={`w-3 h-3 rounded-full ${
+                              ["processing", "shipped", "delivered"].includes(
+                                order.status
+                              )
+                                ? "bg-blue-600"
+                                : "bg-gray-300"
+                            }`}
+                          ></div>
                           <span className="text-gray-600">Processing</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            ['shipped', 'delivered'].includes(order.status)
-                              ? 'bg-blue-600' : 'bg-gray-300'
-                          }`}></div>
+                          <div
+                            className={`w-3 h-3 rounded-full ${
+                              ["shipped", "delivered"].includes(order.status)
+                                ? "bg-blue-600"
+                                : "bg-gray-300"
+                            }`}
+                          ></div>
                           <span className="text-gray-600">Shipped</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            order.status === 'delivered' ? 'bg-green-600' : 'bg-gray-300'
-                          }`}></div>
+                          <div
+                            className={`w-3 h-3 rounded-full ${
+                              order.status === "delivered"
+                                ? "bg-green-600"
+                                : "bg-gray-300"
+                            }`}
+                          ></div>
                           <span className="text-gray-600">Delivered</span>
                         </div>
                       </div>
@@ -252,8 +337,12 @@ const Orders = () => {
                     <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-blue-900">Tracking Number</p>
-                          <p className="text-sm text-blue-700">{order.trackingNumber}</p>
+                          <p className="text-sm font-medium text-blue-900">
+                            Tracking Number
+                          </p>
+                          <p className="text-sm text-blue-700">
+                            {order.trackingNumber}
+                          </p>
                         </div>
                         <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
                           Track Package
@@ -264,12 +353,18 @@ const Orders = () => {
 
                   {/* Action Buttons */}
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {order.status === 'pending' && (
-                      <button className="btn-danger text-sm py-2 px-4">
-                        Cancel Order
+                    {order.status === "pending" && (
+                      <button
+                        onClick={(e) => handleCancelOrder(order._id, e)}
+                        disabled={cancelOrderMutation.isLoading}
+                        className="btn-danger text-sm py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {cancelOrderMutation.isLoading
+                          ? "Cancelling..."
+                          : "Cancel Order"}
                       </button>
                     )}
-                    {order.status === 'delivered' && (
+                    {order.status === "delivered" && (
                       <>
                         <button className="btn-secondary text-sm py-2 px-4">
                           Return Items
@@ -279,7 +374,7 @@ const Orders = () => {
                         </button>
                       </>
                     )}
-                    {order.status === 'delivered' && (
+                    {order.status === "delivered" && (
                       <button className="btn-primary text-sm py-2 px-4">
                         Reorder
                       </button>
@@ -295,10 +390,9 @@ const Orders = () => {
                 No orders found
               </h2>
               <p className="text-gray-600 mb-6">
-                {statusFilter === 'all'
+                {statusFilter === "all"
                   ? "You haven't placed any orders yet."
-                  : `No orders with status "${statusFilter}" found.`
-                }
+                  : `No orders with status "${statusFilter}" found.`}
               </p>
               <Link to="/products" className="btn-primary">
                 Start Shopping
