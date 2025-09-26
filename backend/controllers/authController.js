@@ -61,14 +61,19 @@ export const register = async (req, res) => {
 
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${emailVerificationToken}`;
 
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: 'Email Verification',
-        message: `Please verify your email by clicking this link: ${verificationUrl}`
-      });
-    } catch (err) {
-      console.log('Email sending failed:', err);
+    // Skip email sending if email credentials are not configured
+    if (process.env.EMAIL_USER && process.env.EMAIL_USER !== 'your_email@gmail.com') {
+      try {
+        await sendEmail({
+          email: user.email,
+          subject: 'Email Verification',
+          message: `Please verify your email by clicking this link: ${verificationUrl}`
+        });
+      } catch (err) {
+        console.log('Email sending failed:', err);
+      }
+    } else {
+      console.log('Email sending skipped - credentials not configured');
     }
 
     sendTokenResponse(user, 201, res);
@@ -245,6 +250,29 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    res.status(200).json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        isEmailVerified: user.isEmailVerified
+      }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
 export const refreshToken = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -254,6 +282,41 @@ export const refreshToken = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error'
+    });
+  }
+};
+
+export const createAdmin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    const admin = await User.create({
+      name,
+      email,
+      password,
+      role: 'admin'
+    });
+
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    admin.emailVerificationToken = emailVerificationToken;
+    await admin.save();
+
+    console.log('Admin created successfully:', admin.email);
+
+    sendTokenResponse(admin, 201, res);
+  } catch (error) {
+    console.error('Admin creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during admin creation'
     });
   }
 };

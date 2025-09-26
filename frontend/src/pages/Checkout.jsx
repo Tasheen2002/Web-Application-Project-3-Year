@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
-import { orderAPI, userAPI } from '../services/api';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import { orderAPI, userAPI } from "../services/api";
 import {
   CreditCard,
   MapPin,
@@ -12,9 +12,9 @@ import {
   Phone,
   Lock,
   Check,
-  ArrowLeft
-} from 'lucide-react';
-import toast from 'react-hot-toast';
+  ArrowLeft,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 const Checkout = () => {
   const { items, totalAmount, clearCart } = useCart();
@@ -23,7 +23,7 @@ const Checkout = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentMethod, setPaymentMethod] = useState("card");
   const [isProcessing, setIsProcessing] = useState(false);
 
   const {
@@ -31,19 +31,19 @@ const Checkout = () => {
     handleSubmit,
     formState: { errors },
     setValue,
-    watch
+    watch,
   } = useForm({
     defaultValues: {
-      email: user?.email || '',
-      firstName: user?.name?.split(' ')[0] || '',
-      lastName: user?.name?.split(' ')[1] || '',
-      phone: user?.phone || ''
-    }
+      email: user?.email || "",
+      firstName: user?.name?.split(" ")[0] || "",
+      lastName: user?.name?.split(" ")[1] || "",
+      phone: user?.phone || "",
+    },
   });
 
   useEffect(() => {
     if (!items || items.length === 0) {
-      navigate('/cart');
+      navigate("/cart");
       return;
     }
 
@@ -56,22 +56,24 @@ const Checkout = () => {
       const response = await userAPI.getAddresses();
       setSavedAddresses(response.data.addresses);
 
-      const defaultAddress = response.data.addresses.find(addr => addr.isDefault);
+      const defaultAddress = response.data.addresses.find(
+        (addr) => addr.isDefault
+      );
       if (defaultAddress) {
         setSelectedAddress(defaultAddress);
         populateAddressForm(defaultAddress);
       }
     } catch (error) {
-      console.error('Error loading addresses:', error);
+      console.error("Error loading addresses:", error);
     }
   };
 
   const populateAddressForm = (address) => {
-    setValue('address', address.address);
-    setValue('city', address.city);
-    setValue('state', address.state);
-    setValue('zipCode', address.zipCode);
-    setValue('country', address.country);
+    setValue("address", address.address);
+    setValue("city", address.city);
+    setValue("state", address.state);
+    setValue("zipCode", address.zipCode);
+    setValue("country", address.country);
   };
 
   const handleAddressSelect = (address) => {
@@ -87,7 +89,7 @@ const Checkout = () => {
       subtotal,
       shipping,
       tax,
-      total: subtotal + shipping + tax
+      total: subtotal + shipping + tax,
     };
   };
 
@@ -110,10 +112,12 @@ const Checkout = () => {
 
     try {
       const orderData = {
-        items: items.map(item => ({
+        orderItems: items.map((item) => ({
           product: item.product._id,
+          name: item.product.name,
+          image: item.product.images?.[0]?.url || "/placeholder-product.jpg",
+          price: item.product.price,
           quantity: item.quantity,
-          price: item.product.price
         })),
         shippingAddress: {
           fullName: `${data.firstName} ${data.lastName}`,
@@ -122,21 +126,25 @@ const Checkout = () => {
           state: data.state,
           zipCode: data.zipCode,
           country: data.country,
-          phone: data.phone
+          phone: data.phone,
         },
-        paymentMethod,
-        totalAmount: total
+        paymentMethod: paymentMethod === "card" ? "stripe" : paymentMethod,
+        itemsPrice: subtotal,
+        taxPrice: tax,
+        shippingPrice: shipping,
+        totalPrice: total,
       };
 
       const response = await orderAPI.createOrder(orderData);
 
       if (response.data.success) {
         await clearCart();
-        toast.success('Order placed successfully!');
+        toast.success("Order placed successfully!");
         navigate(`/orders/${response.data.order._id}`);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to place order');
+      console.error("Order creation error:", error);
+      toast.error(error.response?.data?.message || "Failed to place order");
     } finally {
       setIsProcessing(false);
     }
@@ -149,8 +157,8 @@ const Checkout = () => {
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
               step <= currentStep
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-600'
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 text-gray-600"
             }`}
           >
             {step < currentStep ? <Check className="h-4 w-4" /> : step}
@@ -158,7 +166,7 @@ const Checkout = () => {
           {step < 3 && (
             <div
               className={`w-12 h-1 mx-2 ${
-                step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
+                step < currentStep ? "bg-blue-600" : "bg-gray-200"
               }`}
             />
           )}
@@ -174,7 +182,7 @@ const Checkout = () => {
           {/* Header */}
           <div className="flex items-center mb-8">
             <button
-              onClick={() => navigate('/cart')}
+              onClick={() => navigate("/cart")}
               className="flex items-center text-blue-600 hover:text-blue-700 mr-4"
             >
               <ArrowLeft className="h-5 w-5 mr-1" />
@@ -204,13 +212,17 @@ const Checkout = () => {
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                           <input
-                            {...register('firstName', { required: 'First name is required' })}
+                            {...register("firstName", {
+                              required: "First name is required",
+                            })}
                             className="input-field pl-10"
                             placeholder="First name"
                           />
                         </div>
                         {errors.firstName && (
-                          <p className="mt-1 text-sm text-red-600">{errors.firstName.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.firstName.message}
+                          </p>
                         )}
                       </div>
 
@@ -221,13 +233,17 @@ const Checkout = () => {
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                           <input
-                            {...register('lastName', { required: 'Last name is required' })}
+                            {...register("lastName", {
+                              required: "Last name is required",
+                            })}
                             className="input-field pl-10"
                             placeholder="Last name"
                           />
                         </div>
                         {errors.lastName && (
-                          <p className="mt-1 text-sm text-red-600">{errors.lastName.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.lastName.message}
+                          </p>
                         )}
                       </div>
 
@@ -238,19 +254,21 @@ const Checkout = () => {
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                           <input
-                            {...register('email', {
-                              required: 'Email is required',
+                            {...register("email", {
+                              required: "Email is required",
                               pattern: {
                                 value: /^\S+@\S+$/i,
-                                message: 'Please enter a valid email'
-                              }
+                                message: "Please enter a valid email",
+                              },
                             })}
                             className="input-field pl-10"
                             placeholder="Email address"
                           />
                         </div>
                         {errors.email && (
-                          <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.email.message}
+                          </p>
                         )}
                       </div>
 
@@ -261,19 +279,27 @@ const Checkout = () => {
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                           <input
-                            {...register('phone', { required: 'Phone number is required' })}
+                            {...register("phone", {
+                              required: "Phone number is required",
+                            })}
                             className="input-field pl-10"
                             placeholder="Phone number"
                           />
                         </div>
                         {errors.phone && (
-                          <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.phone.message}
+                          </p>
                         )}
                       </div>
                     </div>
 
                     <div className="flex justify-end mt-6">
-                      <button type="button" onClick={nextStep} className="btn-primary">
+                      <button
+                        type="button"
+                        onClick={nextStep}
+                        className="btn-primary"
+                      >
                         Continue to Shipping
                       </button>
                     </div>
@@ -308,9 +334,12 @@ const Checkout = () => {
                                 className="mt-1"
                               />
                               <div className="flex-1">
-                                <div className="font-medium">{address.fullName}</div>
+                                <div className="font-medium">
+                                  {address.fullName}
+                                </div>
                                 <div className="text-sm text-gray-600">
-                                  {address.address}, {address.city}, {address.state} {address.zipCode}
+                                  {address.address}, {address.city},{" "}
+                                  {address.state} {address.zipCode}
                                 </div>
                               </div>
                             </label>
@@ -328,13 +357,17 @@ const Checkout = () => {
                         <div className="relative">
                           <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                           <input
-                            {...register('address', { required: 'Address is required' })}
+                            {...register("address", {
+                              required: "Address is required",
+                            })}
                             className="input-field pl-10"
                             placeholder="Street address"
                           />
                         </div>
                         {errors.address && (
-                          <p className="mt-1 text-sm text-red-600">{errors.address.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.address.message}
+                          </p>
                         )}
                       </div>
 
@@ -344,12 +377,16 @@ const Checkout = () => {
                             City
                           </label>
                           <input
-                            {...register('city', { required: 'City is required' })}
+                            {...register("city", {
+                              required: "City is required",
+                            })}
                             className="input-field"
                             placeholder="City"
                           />
                           {errors.city && (
-                            <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
+                            <p className="mt-1 text-sm text-red-600">
+                              {errors.city.message}
+                            </p>
                           )}
                         </div>
 
@@ -358,12 +395,16 @@ const Checkout = () => {
                             State
                           </label>
                           <input
-                            {...register('state', { required: 'State is required' })}
+                            {...register("state", {
+                              required: "State is required",
+                            })}
                             className="input-field"
                             placeholder="State"
                           />
                           {errors.state && (
-                            <p className="mt-1 text-sm text-red-600">{errors.state.message}</p>
+                            <p className="mt-1 text-sm text-red-600">
+                              {errors.state.message}
+                            </p>
                           )}
                         </div>
 
@@ -372,12 +413,16 @@ const Checkout = () => {
                             ZIP Code
                           </label>
                           <input
-                            {...register('zipCode', { required: 'ZIP code is required' })}
+                            {...register("zipCode", {
+                              required: "ZIP code is required",
+                            })}
                             className="input-field"
                             placeholder="ZIP code"
                           />
                           {errors.zipCode && (
-                            <p className="mt-1 text-sm text-red-600">{errors.zipCode.message}</p>
+                            <p className="mt-1 text-sm text-red-600">
+                              {errors.zipCode.message}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -387,7 +432,9 @@ const Checkout = () => {
                           Country
                         </label>
                         <select
-                          {...register('country', { required: 'Country is required' })}
+                          {...register("country", {
+                            required: "Country is required",
+                          })}
                           className="input-field"
                         >
                           <option value="">Select Country</option>
@@ -396,16 +443,26 @@ const Checkout = () => {
                           <option value="UK">United Kingdom</option>
                         </select>
                         {errors.country && (
-                          <p className="mt-1 text-sm text-red-600">{errors.country.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.country.message}
+                          </p>
                         )}
                       </div>
                     </div>
 
                     <div className="flex justify-between mt-6">
-                      <button type="button" onClick={prevStep} className="btn-secondary">
+                      <button
+                        type="button"
+                        onClick={prevStep}
+                        className="btn-secondary"
+                      >
                         Back
                       </button>
-                      <button type="button" onClick={nextStep} className="btn-primary">
+                      <button
+                        type="button"
+                        onClick={nextStep}
+                        className="btn-primary"
+                      >
                         Continue to Payment
                       </button>
                     </div>
@@ -425,7 +482,7 @@ const Checkout = () => {
                           type="radio"
                           name="paymentMethod"
                           value="card"
-                          checked={paymentMethod === 'card'}
+                          checked={paymentMethod === "card"}
                           onChange={(e) => setPaymentMethod(e.target.value)}
                         />
                         <CreditCard className="h-5 w-5 text-gray-600" />
@@ -437,7 +494,7 @@ const Checkout = () => {
                           type="radio"
                           name="paymentMethod"
                           value="paypal"
-                          checked={paymentMethod === 'paypal'}
+                          checked={paymentMethod === "paypal"}
                           onChange={(e) => setPaymentMethod(e.target.value)}
                         />
                         <div className="w-5 h-5 bg-blue-600 rounded"></div>
@@ -449,7 +506,7 @@ const Checkout = () => {
                           type="radio"
                           name="paymentMethod"
                           value="cod"
-                          checked={paymentMethod === 'cod'}
+                          checked={paymentMethod === "cod"}
                           onChange={(e) => setPaymentMethod(e.target.value)}
                         />
                         <div className="w-5 h-5 bg-green-600 rounded"></div>
@@ -457,7 +514,7 @@ const Checkout = () => {
                       </label>
                     </div>
 
-                    {paymentMethod === 'card' && (
+                    {paymentMethod === "card" && (
                       <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -502,7 +559,11 @@ const Checkout = () => {
                     )}
 
                     <div className="flex justify-between mt-6">
-                      <button type="button" onClick={prevStep} className="btn-secondary">
+                      <button
+                        type="button"
+                        onClick={prevStep}
+                        className="btn-secondary"
+                      >
                         Back
                       </button>
                       <button
@@ -535,7 +596,10 @@ const Checkout = () => {
                     {items.map((item) => (
                       <div key={item.product._id} className="flex space-x-3">
                         <img
-                          src={item.product.images?.[0]?.url || '/placeholder-product.jpg'}
+                          src={
+                            item.product.images?.[0]?.url ||
+                            "/placeholder-product.jpg"
+                          }
                           alt={item.product.name}
                           className="w-12 h-12 object-cover rounded"
                         />
@@ -561,7 +625,9 @@ const Checkout = () => {
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Shipping</span>
-                      <span>{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span>
+                      <span>
+                        {shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}
+                      </span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Tax</span>
@@ -575,7 +641,8 @@ const Checkout = () => {
                   </div>
 
                   <div className="text-xs text-gray-600">
-                    By placing your order, you agree to our Terms of Service and Privacy Policy.
+                    By placing your order, you agree to our Terms of Service and
+                    Privacy Policy.
                   </div>
                 </div>
               </div>
